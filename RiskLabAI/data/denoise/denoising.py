@@ -320,7 +320,12 @@ def optimal_portfolio(cov: np.ndarray, mu: Optional[np.ndarray] = None) -> np.nd
     """
     Compute the optimal (e.g., minimum variance) portfolio weights.
 
-    (Note: This is duplicated in `optimization/nco.py`)
+    Thin re-export of the canonical solver
+    :func:`RiskLabAI.optimization.mean_variance.minimum_variance_weights`,
+    flattened to a 1-D array for backward compatibility with this module's
+    historical signature. Imported locally to avoid an import cycle at module
+    load (this module sits in the data layer; the solver in the optimization
+    layer).
 
     Parameters
     ----------
@@ -332,17 +337,11 @@ def optimal_portfolio(cov: np.ndarray, mu: Optional[np.ndarray] = None) -> np.nd
     Returns
     -------
     np.ndarray
-        The optimal portfolio weights.
+        The optimal portfolio weights as a 1-D array.
     """
-    inv_cov = np.linalg.inv(cov)
-    ones = np.ones(shape=(inv_cov.shape[0], 1))
+    from RiskLabAI.optimization.mean_variance import minimum_variance_weights
 
-    if mu is None:
-        mu = ones
-
-    w = inv_cov @ mu
-    w /= ones.T @ w
-    return w.flatten()
+    return minimum_variance_weights(cov, mu).flatten()
 
 
 def optimal_portfolio_denoised(

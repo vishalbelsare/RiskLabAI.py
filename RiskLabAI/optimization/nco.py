@@ -12,6 +12,7 @@ import pandas as pd
 
 # Import canonical implementations instead of duplicating
 from RiskLabAI.cluster.clustering import cluster_k_means_base, covariance_to_correlation
+from RiskLabAI.optimization.mean_variance import minimum_variance_weights
 
 
 def get_optimal_portfolio_weights(
@@ -23,6 +24,9 @@ def get_optimal_portfolio_weights(
     If `mu` is not provided, computes the Global Minimum Variance (GMV) portfolio.
     If `mu` is provided, computes the Mean-Variance Optimization (MVO) portfolio.
 
+    This delegates to :func:`RiskLabAI.optimization.mean_variance.minimum_variance_weights`,
+    the single source of truth for the closed-form Markowitz solution.
+
     Parameters
     ----------
     covariance : np.ndarray
@@ -33,17 +37,9 @@ def get_optimal_portfolio_weights(
     Returns
     -------
     np.ndarray
-        Optimal portfolio weights.
+        Optimal portfolio weights as an ``N x 1`` column vector.
     """
-    inverse_covariance = np.linalg.inv(covariance)
-    ones = np.ones(shape=(inverse_covariance.shape[0], 1))
-
-    if mu is None:
-        mu = ones  # For GMV portfolio
-
-    weights = np.dot(inverse_covariance, mu)
-    weights /= np.dot(ones.T, weights)  # Normalize weights to sum to 1
-    return weights
+    return minimum_variance_weights(covariance, mu)
 
 
 def get_optimal_portfolio_weights_nco(

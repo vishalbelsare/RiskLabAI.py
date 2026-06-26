@@ -152,6 +152,11 @@ def distance_corr(corr_matrix: np.ndarray) -> np.ndarray:
     Compute the distance matrix based on correlation.
     d = sqrt(0.5 * (1 - p))
 
+    Thin wrapper over the canonical angular-distance implementation
+    :func:`RiskLabAI.data.distance.distance_metric.calculate_distance`, the
+    single source of truth for the correlation-to-distance formula. Imported
+    locally to avoid an import cycle at module load.
+
     Parameters
     ----------
     corr_matrix : np.ndarray
@@ -162,8 +167,9 @@ def distance_corr(corr_matrix: np.ndarray) -> np.ndarray:
     np.ndarray
         Distance matrix.
     """
-    distance_matrix = ((1 - corr_matrix) / 2.0) ** 0.5
-    return distance_matrix
+    from RiskLabAI.data.distance.distance_metric import calculate_distance
+
+    return calculate_distance(corr_matrix, metric="angular")
 
 
 def hrp(cov: pd.DataFrame, corr: pd.DataFrame) -> pd.Series:

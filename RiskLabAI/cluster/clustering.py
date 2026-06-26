@@ -81,8 +81,11 @@ def cluster_k_means_base(
         - clusters: A dictionary mapping cluster ID to a list of item names.
         - silhouette_scores: A Series of silhouette scores for each item.
     """
-    # Calculate distance matrix
-    distance = ((1 - correlation.fillna(0)) / 2.0) ** 0.5
+    # Calculate distance matrix via the canonical angular-distance helper
+    # (single source of truth; imported locally to avoid an import cycle).
+    from RiskLabAI.data.distance.distance_metric import calculate_distance
+
+    distance = calculate_distance(correlation.fillna(0), metric="angular")
 
     best_kmeans = None
     best_silhouette_scores = None
@@ -176,8 +179,11 @@ def make_new_outputs(
     ]
     correlation_new = correlation.loc[index_new, index_new]
 
-    # Calculate new silhouette scores based on the *original* distance
-    distance = ((1 - correlation.fillna(0)) / 2.0) ** 0.5
+    # Calculate new silhouette scores based on the *original* distance,
+    # via the canonical angular-distance helper (single source of truth).
+    from RiskLabAI.data.distance.distance_metric import calculate_distance
+
+    distance = calculate_distance(correlation.fillna(0), metric="angular")
     labels_kmeans = np.zeros(len(distance.columns))
 
     # Create the label array for silhouette_samples

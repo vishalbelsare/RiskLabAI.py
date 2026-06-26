@@ -4,10 +4,10 @@ Computes Mean Decrease Impurity (MDI) feature importance.
 
 from typing import Any
 
-import numpy as np
 import pandas as pd
 from sklearn.ensemble import BaseEnsemble
 
+from ._common import tree_feature_importances
 from .feature_importance_strategy import FeatureImportanceStrategy
 
 
@@ -54,24 +54,10 @@ class FeatureImportanceMDI(FeatureImportanceStrategy):
         """
         train_sample_weights = kwargs.get("sample_weight")
 
-        # Fit the classifier
-        self.classifier.fit(x, y, sample_weight=train_sample_weights)
-
-        # Get importance from each tree
-        importances_dict = {
-            i: tree.feature_importances_
-            for i, tree in enumerate(self.classifier.estimators_)
-        }
-        importances_df = pd.DataFrame.from_dict(importances_dict, orient="index")
-
-        # Ensure correct feature names
-        if hasattr(self.classifier, "feature_names_in_"):
-            importances_df.columns = self.classifier.feature_names_in_
-        else:
-            importances_df.columns = x.columns
-
-        # Replace 0 with NaN (as per user's original code)
-        importances_df.replace(0, np.nan, inplace=True)
+        # Fit the ensemble and collect each tree's importances (0 -> NaN).
+        importances_df = tree_feature_importances(
+            self.classifier, x, y, train_sample_weights
+        )
 
         importances = pd.concat(
             {
