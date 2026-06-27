@@ -3,22 +3,17 @@ Abstract base class for Information-Driven Bars (Imbalance and Run bars).
 """
 
 from abc import abstractmethod
-from typing import Union, List, Optional
+from typing import Optional
+
 import numpy as np
 
-# Assuming ewma is in utils.
-try:
-    from RiskLabAI.utils.ewma import ewma 
-except ImportError:
-    # Fallback if ewma is not in utils (as seen in older files)
-    def ewma(array: np.ndarray, window: int) -> np.ndarray:
-        """Placeholder EWMA function."""
-        if array.size == 0:
-            return np.array([np.nan])
-        return pd.Series(array).ewm(span=window).mean().values
-
 from RiskLabAI.data.structures.abstract_bars import AbstractBars
-from RiskLabAI.utils.constants import *
+from RiskLabAI.utils.constants import (
+    EXPECTED_IMBALANCE_WINDOW,
+    EXPECTED_TICKS_NUMBER,
+)
+from RiskLabAI.utils.ewma import ewma
+
 
 class AbstractInformationDrivenBars(AbstractBars):
     """
@@ -54,9 +49,7 @@ class AbstractInformationDrivenBars(AbstractBars):
         """
         super().__init__(bar_type)
         self.information_driven_bars_statistics = {
-            EXPECTED_TICKS_NUMBER: float(
-                initial_estimate_of_expected_n_ticks_in_bar
-            ),
+            EXPECTED_TICKS_NUMBER: float(initial_estimate_of_expected_n_ticks_in_bar),
             EXPECTED_IMBALANCE_WINDOW: window_size_for_expected_imbalance_estimation,
         }
         self.window_size_for_expected_n_ticks_estimation = (
@@ -94,9 +87,7 @@ class AbstractInformationDrivenBars(AbstractBars):
         if ewma_window == 0:
             return np.nan
 
-        return ewma(
-            np.array(array[-ewma_window:], dtype=float), window=ewma_window
-        )[-1]
+        return ewma(np.array(array[-ewma_window:], dtype=float), window=ewma_window)[-1]
 
     def _imbalance_at_tick(
         self, price: float, signed_tick: int, volume: float

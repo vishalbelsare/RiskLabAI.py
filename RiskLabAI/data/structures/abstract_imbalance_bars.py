@@ -3,14 +3,24 @@ Abstract base class for Imbalance Bars (Fixed and Expected).
 """
 
 from abc import abstractmethod
-from typing import Union, List, Any, Iterable, Optional
+from collections.abc import Iterable
+from typing import Any, Optional
+
 import numpy as np
 
-from RiskLabAI.data.structures.abstract_information_driven_bars import (
-    AbstractInformationDrivenBars
-)
 from RiskLabAI.data.structures.abstract_bars import TickData
-from RiskLabAI.utils.constants import *
+from RiskLabAI.data.structures.abstract_information_driven_bars import (
+    AbstractInformationDrivenBars,
+)
+from RiskLabAI.utils.constants import (
+    CUMULATIVE_THETA,
+    CUMULATIVE_TICKS,
+    EXPECTED_IMBALANCE,
+    EXPECTED_IMBALANCE_WINDOW,
+    EXPECTED_TICKS_NUMBER,
+    PREVIOUS_BARS_N_TICKS_LIST,
+    PREVIOUS_TICK_IMBALANCES_LIST,
+)
 
 
 class AbstractImbalanceBars(AbstractInformationDrivenBars):
@@ -44,7 +54,7 @@ class AbstractImbalanceBars(AbstractInformationDrivenBars):
         )
 
         self.imbalance_bars_statistics = {
-            CUMULATIVE_θ: 0.0,
+            CUMULATIVE_THETA: 0.0,
             EXPECTED_IMBALANCE: np.nan,
             PREVIOUS_BARS_N_TICKS_LIST: [],
             PREVIOUS_TICK_IMBALANCES_LIST: [],
@@ -52,22 +62,22 @@ class AbstractImbalanceBars(AbstractInformationDrivenBars):
 
         self.analyse_thresholds = [] if analyse_thresholds else None
 
-    def construct_bars_from_data(self, data: Iterable[TickData]) -> List[List[Any]]:
+    def construct_bars_from_data(self, data: Iterable[TickData]) -> list[list[Any]]:
         """
         Constructs imbalance bars from input tick data.
         (Parameters same as original)
         """
         bars_list = []
-        
+
         # Keep track of last timestamp and threshold
         date_time = None
         threshold = np.inf
-        
+
         for tick_data in data:
             self.tick_counter += 1
 
             date_time, price, volume = tick_data[0], tick_data[1], tick_data[2]
-            
+
             # Update common fields
             tick_rule = self._tick_rule(price)
             self.update_base_fields(price, tick_rule, volume)
@@ -78,18 +88,18 @@ class AbstractImbalanceBars(AbstractInformationDrivenBars):
             self.imbalance_bars_statistics[PREVIOUS_TICK_IMBALANCES_LIST].append(
                 imbalance
             )
-            self.imbalance_bars_statistics[CUMULATIVE_θ] += imbalance
+            self.imbalance_bars_statistics[CUMULATIVE_THETA] += imbalance
 
             # Warm-up E[b] if it's the first time
             if np.isnan(self.imbalance_bars_statistics[EXPECTED_IMBALANCE]):
-                self.imbalance_bars_statistics[
-                    EXPECTED_IMBALANCE
-                ] = self._ewma_expected_imbalance(
-                    self.imbalance_bars_statistics[PREVIOUS_TICK_IMBALANCES_LIST],
-                    self.information_driven_bars_statistics[
-                        EXPECTED_IMBALANCE_WINDOW
-                    ],
-                    warm_up=True,
+                self.imbalance_bars_statistics[EXPECTED_IMBALANCE] = (
+                    self._ewma_expected_imbalance(
+                        self.imbalance_bars_statistics[PREVIOUS_TICK_IMBALANCES_LIST],
+                        self.information_driven_bars_statistics[
+                            EXPECTED_IMBALANCE_WINDOW
+                        ],
+                        warm_up=True,
+                    )
                 )
 
             if self.analyse_thresholds is not None:
@@ -97,7 +107,7 @@ class AbstractImbalanceBars(AbstractInformationDrivenBars):
                     **self.base_statistics,
                     **self.information_driven_bars_statistics,
                     **self.imbalance_bars_statistics,
-                    'timestamp': date_time
+                    "timestamp": date_time,
                 }
                 self.analyse_thresholds.append(stats)
 
@@ -105,10 +115,8 @@ class AbstractImbalanceBars(AbstractInformationDrivenBars):
             expected_ticks = self.information_driven_bars_statistics[
                 EXPECTED_TICKS_NUMBER
             ]
-            expected_imbalance = self.imbalance_bars_statistics[
-                EXPECTED_IMBALANCE
-            ]
-            
+            expected_imbalance = self.imbalance_bars_statistics[EXPECTED_IMBALANCE]
+
             if np.isnan(expected_ticks) or np.isnan(expected_imbalance):
                 threshold = np.inf
             else:
@@ -126,24 +134,24 @@ class AbstractImbalanceBars(AbstractInformationDrivenBars):
                 bars_list.append(next_bar)
 
                 # Store T for E[T] update
-                self.imbalance_bars_statistics[
-                    PREVIOUS_BARS_N_TICKS_LIST
-                ].append(self.base_statistics[CUMULATIVE_TICKS])
+                self.imbalance_bars_statistics[PREVIOUS_BARS_N_TICKS_LIST].append(
+                    self.base_statistics[CUMULATIVE_TICKS]
+                )
 
                 # Update E[T]
-                self.information_driven_bars_statistics[
-                    EXPECTED_TICKS_NUMBER
-                ] = self._expected_number_of_ticks()
+                self.information_driven_bars_statistics[EXPECTED_TICKS_NUMBER] = (
+                    self._expected_number_of_ticks()
+                )
 
                 # Update E[b]
-                self.imbalance_bars_statistics[
-                    EXPECTED_IMBALANCE
-                ] = self._ewma_expected_imbalance(
-                    self.imbalance_bars_statistics[PREVIOUS_TICK_IMBALANCES_LIST],
-                    self.information_driven_bars_statistics[
-                        EXPECTED_IMBALANCE_WINDOW
-                    ],
-                    warm_up=False,
+                self.imbalance_bars_statistics[EXPECTED_IMBALANCE] = (
+                    self._ewma_expected_imbalance(
+                        self.imbalance_bars_statistics[PREVIOUS_TICK_IMBALANCES_LIST],
+                        self.information_driven_bars_statistics[
+                            EXPECTED_IMBALANCE_WINDOW
+                        ],
+                        warm_up=False,
+                    )
                 )
 
                 # Reset cached fields
@@ -155,14 +163,14 @@ class AbstractImbalanceBars(AbstractInformationDrivenBars):
         """Check if cumulative imbalance |theta| exceeds the threshold."""
         if np.isnan(threshold) or np.isinf(threshold):
             return False
-            
-        cumulative_theta = self.imbalance_bars_statistics[CUMULATIVE_θ]
+
+        cumulative_theta = self.imbalance_bars_statistics[CUMULATIVE_THETA]
         return np.abs(cumulative_theta) >= threshold
 
     def _reset_cached_fields(self):
         """Reset base fields and cumulative theta."""
         super()._reset_cached_fields()
-        self.imbalance_bars_statistics[CUMULATIVE_θ] = 0.0
+        self.imbalance_bars_statistics[CUMULATIVE_THETA] = 0.0
 
     @abstractmethod
     def _expected_number_of_ticks(self) -> float:

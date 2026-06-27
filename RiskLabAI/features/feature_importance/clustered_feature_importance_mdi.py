@@ -2,11 +2,14 @@
 Computes Clustered Mean Decrease Impurity (MDI) feature importance.
 """
 
+from typing import Any
+
 import pandas as pd
-import numpy as np
 from sklearn.ensemble import BaseEnsemble
-from typing import Dict, List, Any
+
+from ._common import tree_feature_importances
 from .feature_importance_strategy import FeatureImportanceStrategy
+
 
 class ClusteredFeatureImportanceMDI(FeatureImportanceStrategy):
     """
@@ -18,7 +21,7 @@ class ClusteredFeatureImportanceMDI(FeatureImportanceStrategy):
     def __init__(
         self,
         classifier: BaseEnsemble,
-        clusters: Dict[str, List[str]],
+        clusters: dict[str, list[str]],
     ):
         """
         Initialize the strategy.
@@ -37,7 +40,7 @@ class ClusteredFeatureImportanceMDI(FeatureImportanceStrategy):
         self.clusters = clusters
 
     def _group_mean_std(
-        self, dataframe: pd.DataFrame, clusters: Dict[str, List[str]]
+        self, dataframe: pd.DataFrame, clusters: dict[str, list[str]]
     ) -> pd.DataFrame:
         """
         Calculate the mean and standard deviation for cluster importances.
@@ -47,13 +50,13 @@ class ClusteredFeatureImportanceMDI(FeatureImportanceStrategy):
         for cluster_name, feature_names in clusters.items():
             # Sum importance for all features in the cluster
             cluster_data = dataframe[feature_names].sum(axis=1)
-            
+
             cluster_mean = cluster_data.mean()
             cluster_std = cluster_data.std()
-            
+
             output.loc[f"C_{cluster_name}", "Mean"] = cluster_mean
-            output.loc[f"C_{cluster_name}", "StandardDeviation"] = (
-                cluster_std * (cluster_data.shape[0] ** -0.5)
+            output.loc[f"C_{cluster_name}", "StandardDeviation"] = cluster_std * (
+                cluster_data.shape[0] ** -0.5
             )
         return output
 
@@ -77,29 +80,16 @@ class ClusteredFeatureImportanceMDI(FeatureImportanceStrategy):
             DataFrame with "Mean" and "StandardDeviation" of importance
             for each *cluster*.
         """
-        train_sample_weights = kwargs.get('sample_weight')
-        
-        # Fit the classifier
-        self.classifier.fit(x, y, sample_weight=train_sample_weights)
-        
-        # Get importance from each tree
-        importances_dict = {
-            i: tree.feature_importances_
-            for i, tree in enumerate(self.classifier.estimators_)
-        }
-        importances_df = pd.DataFrame.from_dict(importances_dict, orient="index")
-        
-        if hasattr(self.classifier, 'feature_names_in_'):
-             importances_df.columns = self.classifier.feature_names_in_
-        else:
-             importances_df.columns = x.columns
+        train_sample_weights = kwargs.get("sample_weight")
 
-        # Replace 0 with NaN
-        importances_df.replace(0, np.nan, inplace=True)
+        # Fit the ensemble and collect each tree's importances (0 -> NaN).
+        importances_df = tree_feature_importances(
+            self.classifier, x, y, train_sample_weights
+        )
 
         # Group by cluster
         aggregated_importances = self._group_mean_std(importances_df, self.clusters)
-        
+
         # Normalize
         aggregated_importances /= aggregated_importances["Mean"].sum()
         return aggregated_importances

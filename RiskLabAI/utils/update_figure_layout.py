@@ -4,7 +4,7 @@ to Plotly figures.
 """
 
 import plotly.graph_objects as go
-from typing import Optional
+
 
 def update_figure_layout(
     fig: go.Figure,
@@ -45,7 +45,7 @@ def update_figure_layout(
         yaxis_title=yaxis_title,
         template="plotly_dark",
         plot_bgcolor="rgba(0,0,0,0)",  # Transparent background
-        paper_bgcolor="rgba(0,0,0,0)", # Transparent background
+        paper_bgcolor="rgba(0,0,0,0)",  # Transparent background
         legend=dict(
             x=legend_x,
             y=legend_y,

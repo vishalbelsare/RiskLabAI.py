@@ -3,11 +3,10 @@ Implements the Kontoyiannis Entropy estimator (LZ-based).
 """
 
 from math import log2
-from typing import Tuple, Optional
+from typing import Optional
 
-def longest_match_length(
-    message: str, i: int, n: int
-) -> Tuple[int, str]:
+
+def longest_match_length(message: str, i: int, n: int) -> tuple[int, str]:
     """
     Find the length of the longest match for the substring starting at `i`.
 
@@ -30,34 +29,32 @@ def longest_match_length(
         - The matched substring.
     """
     longest_match = ""
-    # Iterate through possible lengths `l`
-    for l in range(1, n + 1):
-        pattern = message[i : i + l]
-        
+    # Iterate through possible match lengths
+    for length in range(1, n + 1):
+        pattern = message[i : i + length]
+
         # Stop if pattern goes beyond message length
-        if i + l > len(message):
+        if i + length > len(message):
             break
-            
+
         found = False
         # Look back in the window [max(0, i-n), i-1]
         for j in range(max(0, i - n), i):
-            candidate = message[j : j + l]
+            candidate = message[j : j + length]
             if pattern == candidate:
                 longest_match = pattern
                 found = True
                 break
-        
-        # If pattern of length `l` was not found, the
-        # longest match was of length `l-1`.
+
+        # If a pattern of this length was not found, the
+        # longest match was one shorter.
         if not found:
             break
 
     return len(longest_match) + 1, longest_match
 
 
-def kontoyiannis_entropy(
-    message: str, window: Optional[int] = None
-) -> float:
+def kontoyiannis_entropy(message: str, window: Optional[int] = None) -> float:
     r"""
     Calculate Kontoyiannis Entropy (an LZ78-based estimator).
 
@@ -98,10 +95,11 @@ def kontoyiannis_entropy(
 
     for i in points:
         n = i if window is None else window
-        if n == 0: continue # Avoid log2(0)
-            
+        if n == 0:
+            continue  # Avoid log2(0)
+
         l_i, _ = longest_match_length(message, i, n)
-        
+
         sum_h += log2(n) / l_i
         num_points += 1
 

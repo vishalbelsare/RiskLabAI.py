@@ -8,13 +8,20 @@ Implements advanced portfolio optimization techniques, including:
 - Custom Hyper-Parameter Tuning
 """
 
+from .hedging import (
+    pca_weights,
+)
 from .hrp import (
     cluster_variance,
+    hrp,
     quasi_diagonal,
     recursive_bisection,
-    hrp,
 )
-
+from .hyper_parameter_tuning import (
+    MyPipeline,  # deprecated alias (removed in 2.1.0)
+    SampleWeightedPipeline,
+    clf_hyper_fit,
+)
 from .nco import (
     # cluster_kmeans_base is imported into nco.py, not defined there.
     # It should be imported from RiskLabAI.cluster.clustering directly
@@ -23,30 +30,19 @@ from .nco import (
     get_optimal_portfolio_weights_nco,
 )
 
-from .hedging import (
-    pca_weights,
-)
-
-from .hyper_parameter_tuning import (
-    MyPipeline,
-    clf_hyper_fit,
-)
-
 __all__ = [
     # hrp.py
     "cluster_variance",
     "quasi_diagonal",
     "recursive_bisection",
     "hrp",
-    
     # nco.py
     "get_optimal_portfolio_weights",
     "get_optimal_portfolio_weights_nco",
-    
     # hedging.py
     "pca_weights",
-    
     # hyper_parameter_tuning.py
-    "MyPipeline",
+    "SampleWeightedPipeline",
+    "MyPipeline",  # deprecated alias (removed in 2.1.0)
     "clf_hyper_fit",
 ]

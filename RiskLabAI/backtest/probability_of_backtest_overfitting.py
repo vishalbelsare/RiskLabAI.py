@@ -11,13 +11,14 @@ Implements the Probability of Backtest Overfitting (PBO) calculation.
       original notebook).
 """
 
-from typing import Tuple, Callable, List, Optional
 from itertools import combinations
+from typing import Callable, Optional
+
 import numpy as np
-from numba import jit
 from joblib import Parallel, delayed
 
 from .backtest_statistics import sharpe_ratio
+
 
 def performance_evaluation(
     train_partition: np.ndarray,
@@ -25,7 +26,7 @@ def performance_evaluation(
     n_strategies: int,
     metric: Callable[[np.ndarray, float], float],
     risk_free_return: float,
-) -> Tuple[bool, float]:
+) -> tuple[bool, float]:
     """
     Evaluate strategy performance on train/test splits.
 
@@ -54,15 +55,13 @@ def performance_evaluation(
     """
     # 1. Find best strategy on training data
     evaluate_train = [
-        metric(train_partition[:, i], risk_free_return)
-        for i in range(n_strategies)
+        metric(train_partition[:, i], risk_free_return) for i in range(n_strategies)
     ]
     best_strategy_idx = np.argmax(evaluate_train)
 
     # 2. Evaluate all strategies on test data
     evaluate_test = [
-        metric(test_partition[:, i], risk_free_return)
-        for i in range(n_strategies)
+        metric(test_partition[:, i], risk_free_return) for i in range(n_strategies)
     ]
 
     # 3. Find rank of the best_strategy in the test set
@@ -84,7 +83,7 @@ def probability_of_backtest_overfitting(
     risk_free_return: float = 0.0,
     metric: Optional[Callable[[np.ndarray, float], float]] = None,
     n_jobs: int = 1,
-) -> Tuple[float, np.ndarray]:
+) -> tuple[float, np.ndarray]:
     r"""
     Compute the Probability of Backtest Overfitting (PBO).
 
@@ -129,7 +128,7 @@ def probability_of_backtest_overfitting(
     _, n_strategies = performances.shape
     partitions = np.array_split(performances, n_partitions)
     partition_indices = list(range(n_partitions))
-    
+
     # Get all combinations of training partition indices
     partition_combinations_indices = list(
         combinations(partition_indices, n_partitions // 2)
@@ -139,11 +138,7 @@ def probability_of_backtest_overfitting(
         delayed(performance_evaluation)(
             np.concatenate([partitions[i] for i in train_indices], axis=0),
             np.concatenate(
-                [
-                    partitions[i]
-                    for i in partition_indices
-                    if i not in train_indices
-                ],
+                [partitions[i] for i in partition_indices if i not in train_indices],
                 axis=0,
             ),
             n_strategies,

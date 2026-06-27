@@ -8,13 +8,12 @@ Reference:
 """
 
 from math import pi
-import pandas as pd
+
 import numpy as np
-from .corwin_schultz import (
-    beta_estimates, 
-    gamma_estimates, 
-    _DENOMINATOR
-)
+import pandas as pd
+
+from .corwin_schultz import _DENOMINATOR, beta_estimates, gamma_estimates
+
 
 def sigma_estimates(beta: pd.Series, gamma: pd.Series) -> pd.Series:
     r"""
@@ -42,7 +41,7 @@ def sigma_estimates(beta: pd.Series, gamma: pd.Series) -> pd.Series:
 
     term1 = (2**0.5 - 1) * (beta**0.5) / _DENOMINATOR
     term2 = (gamma / (k2**2 * _DENOMINATOR)) ** 0.5
-    
+
     # Floor at zero
     sigma = np.maximum(term1 + term2, 0)
 
@@ -52,7 +51,7 @@ def sigma_estimates(beta: pd.Series, gamma: pd.Series) -> pd.Series:
 def bekker_parkinson_volatility_estimates(
     high_prices: pd.Series, low_prices: pd.Series, window_span: int = 20
 ) -> pd.Series:
-    """
+    r"""
     Compute Bekker-Parkinson volatility estimates from high and low prices.
 
     This function first calculates the Corwin-Schultz \(\beta\) and \(\gamma\)

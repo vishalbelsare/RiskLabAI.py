@@ -4,8 +4,10 @@ Implements the theoretical accuracy of a bagging classifier,
 as described in "Advances in Financial Machine Learning" by de Prado (2018),
 Chapter 6, Section 6.2, p. 86.
 """
+
 # import numpy as np  <-- Removed unused import
 from scipy.stats import binom
+
 
 def bagging_classifier_accuracy(N: int, p: float) -> float:
     """
@@ -29,15 +31,15 @@ def bagging_classifier_accuracy(N: int, p: float) -> float:
     """
     if N % 2 == 0:
         raise ValueError(f"Number of estimators N must be odd. Got {N}.")
-        
+
     # The majority threshold.
     # e.g., if N=101, k=50. We need 51 or more correct votes.
     k = (N - 1) // 2
-    
+
     # Probability of k or fewer successes (P(X <= k))
     prob_majority_wrong = binom.cdf(k, N, p)
-    
+
     # Probability of more than k successes (P(X > k))
     prob_majority_correct = 1.0 - prob_majority_wrong
-    
+
     return prob_majority_correct

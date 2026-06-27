@@ -11,15 +11,15 @@ Reference:
 """
 
 from .denoising import (
-    marcenko_pastur_pdf,
-    fit_kde,
-    find_max_eval,
-    pca,
-    denoised_corr,
-    cov_to_corr,
     corr_to_cov,
+    cov_to_corr,
     denoise_cov,
-    optimal_portfolio, 
+    denoised_corr,
+    find_max_eval,
+    fit_kde,
+    marcenko_pastur_pdf,
+    optimal_portfolio,
+    pca,
 )
 
 __all__ = [
@@ -27,10 +27,10 @@ __all__ = [
     "fit_kde",
     "find_max_eval",
     "pca",
-    "denoised_corr",   
-    "denoised_corr2", 
+    "denoised_corr",
+    "denoised_corr2",
     "cov_to_corr",
     "corr_to_cov",
     "denoise_cov",
-    "optimal_portfolio",  
+    "optimal_portfolio",
 ]

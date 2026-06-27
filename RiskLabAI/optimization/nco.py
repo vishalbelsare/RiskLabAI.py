@@ -5,21 +5,15 @@ Reference:
     De Prado, M. (2018) Advances in financial machine learning.
 """
 
+from typing import Optional
+
 import numpy as np
 import pandas as pd
-from typing import Optional, Tuple, Dict, List
 
 # Import canonical implementations instead of duplicating
-try:
-    from RiskLabAI.cluster.clustering import (
-        cluster_k_means_base, covariance_to_correlation
-    )
-except ImportError:
-    # Fallback for testing if cluster module not found
-    print("Warning: RiskLabAI.cluster.clustering not found. Using dummy functions.")
-    def covariance_to_correlation(cov: np.ndarray) -> np.ndarray: return cov
-    def cluster_k_means_base(*args, **kwargs) -> Tuple:
-        return pd.DataFrame(), {}, pd.Series()
+from RiskLabAI.cluster.clustering import cluster_k_means_base, covariance_to_correlation
+from RiskLabAI.optimization.mean_variance import minimum_variance_weights
+
 
 def get_optimal_portfolio_weights(
     covariance: np.ndarray, mu: Optional[np.ndarray] = None
@@ -29,6 +23,9 @@ def get_optimal_portfolio_weights(
 
     If `mu` is not provided, computes the Global Minimum Variance (GMV) portfolio.
     If `mu` is provided, computes the Mean-Variance Optimization (MVO) portfolio.
+
+    This delegates to :func:`RiskLabAI.optimization.mean_variance.minimum_variance_weights`,
+    the single source of truth for the closed-form Markowitz solution.
 
     Parameters
     ----------
@@ -40,17 +37,9 @@ def get_optimal_portfolio_weights(
     Returns
     -------
     np.ndarray
-        Optimal portfolio weights.
+        Optimal portfolio weights as an ``N x 1`` column vector.
     """
-    inverse_covariance = np.linalg.inv(covariance)
-    ones = np.ones(shape=(inverse_covariance.shape[0], 1))
-
-    if mu is None:
-        mu = ones  # For GMV portfolio
-    
-    weights = np.dot(inverse_covariance, mu)
-    weights /= np.dot(ones.T, weights)  # Normalize weights to sum to 1
-    return weights
+    return minimum_variance_weights(covariance, mu)
 
 
 def get_optimal_portfolio_weights_nco(
@@ -84,13 +73,13 @@ def get_optimal_portfolio_weights_nco(
     """
     covariance = pd.DataFrame(covariance)
     correlation = covariance_to_correlation(covariance.to_numpy())
-    correlation = pd.DataFrame(correlation, 
-                             index=covariance.index, 
-                             columns=covariance.columns)
-    
+    correlation = pd.DataFrame(
+        correlation, index=covariance.index, columns=covariance.columns
+    )
+
     if mu is not None:
         mu = pd.Series(mu.flatten(), index=covariance.index)
-        
+
     if number_clusters is None:
         number_clusters = int(correlation.shape[0] / 2)
 
@@ -105,14 +94,14 @@ def get_optimal_portfolio_weights_nco(
     )
     for i, cluster_assets in clusters.items():
         cov_intra = covariance.loc[cluster_assets, cluster_assets].values
-        
+
         mu_intra = None
         if mu is not None:
             mu_intra = mu.loc[cluster_assets].values.reshape(-1, 1)
-            
-        weights_intra_cluster.loc[cluster_assets, i] = (
-            get_optimal_portfolio_weights(cov_intra, mu_intra).flatten()
-        )
+
+        weights_intra_cluster.loc[cluster_assets, i] = get_optimal_portfolio_weights(
+            cov_intra, mu_intra
+        ).flatten()
 
     # 3. Compute inter-cluster weights
     # Reduce covariance matrix using intra-cluster weights
@@ -133,7 +122,5 @@ def get_optimal_portfolio_weights_nco(
     )
 
     # 4. Combine weights
-    weights_nco = weights_intra_cluster.mul(weights_inter_cluster, axis=1).sum(
-        axis=1
-    )
+    weights_nco = weights_intra_cluster.mul(weights_inter_cluster, axis=1).sum(axis=1)
     return weights_nco.values.reshape(-1, 1)

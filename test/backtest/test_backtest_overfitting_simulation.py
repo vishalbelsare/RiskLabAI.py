@@ -3,33 +3,36 @@ Tests for backtest_overfitting_simulation.py
 """
 
 import platform
-from pyexpat import features
+
 import numpy as np
 import pandas as pd
 import pytest
+
 from RiskLabAI.backtest.backtest_overfitting_simulation import (
-    sharpe_ratio,
-    sortino_ratio,
     expected_shortfall,
     financial_features_backtest_overfitting_simulation,
     get_cpu_info,
+    sharpe_ratio,
+    sortino_ratio,
 )
+
 
 @pytest.fixture
 def sample_prices():
     """Fixture for a sample price series."""
     return pd.Series(
         np.cumprod(1 + np.random.normal(0.001, 0.01, 300)),
-        index=pd.date_range("2020-01-01", periods=300)
+        index=pd.date_range("2020-01-01", periods=300),
     )
+
 
 def test_local_metric_functions():
     """Test the locally defined metric functions."""
     returns = pd.Series([0.01, 0.01, 0.01, 0.01])
     # Test Sharpe
     # mean=0.01, std=0 -> SR=0
-    assert np.isclose(sharpe_ratio(returns, 0.0), 0.0) 
-    
+    assert np.isclose(sharpe_ratio(returns, 0.0), 0.0)
+
     returns_var = pd.Series([0.02, -0.01, 0.02, -0.01])
     # Test Sortino
     # mean=0.005, rf=0
@@ -46,8 +49,6 @@ def test_local_metric_functions():
     assert np.isclose(es, -0.1)
 
 
-
-
 def test_financial_features_generation(sample_prices):
     """Test the financial_features function."""
     features = financial_features_backtest_overfitting_simulation(
@@ -61,15 +62,16 @@ def test_financial_features_generation(sample_prices):
     assert features_dropped.shape[0] < sample_prices.shape[0]
     assert "FracDiff" in features.columns
     assert "Volatility" in features.columns
-    assert "Log MACD Histogram" in features.columns 
+    assert "Log MACD Histogram" in features.columns
     assert "Kumo Breakout" in features.columns
-    
+
     # Check that noise is applied
     features_noised = financial_features_backtest_overfitting_simulation(
         sample_prices, noise_scale=1.0, random_state=42
     )
     # Volatility should be different
     assert not features["Volatility"].equals(features_noised["Volatility"])
+
 
 @pytest.mark.skipif(platform.system() == "Windows", reason="lscpu not on Windows")
 def test_get_cpu_info():

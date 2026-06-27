@@ -13,7 +13,7 @@ Reference:
 import numpy as np
 import pandas as pd
 from scipy import stats
-from typing import List, Tuple, Optional
+
 
 def calculate_t_value_linear_regression(prices: pd.Series) -> float:
     """
@@ -33,22 +33,23 @@ def calculate_t_value_linear_regression(prices: pd.Series) -> float:
     # --- SUGGESTION: Explicitly handle insufficient data ---
     if prices.shape[0] < 2:
         return np.nan
-        
+
     x = np.arange(prices.shape[0])
     try:
         ols = stats.linregress(x, prices.values)
     except ValueError:
         return np.nan
-        
+
     if ols.stderr == 0:
-        # Handle perfect fit (vertical line, or constant)
-        return np.sign(ols.slope) * np.inf if ols.slope != 0 else 0.0
+        # Perfect trend: t -> +/- inf. Constant series: 0/0 -> undefined (NaN),
+        # consistent with the documented contract.
+        return np.sign(ols.slope) * np.inf if ols.slope != 0 else np.nan
 
     return ols.slope / ols.stderr
 
 
 def find_trend_using_trend_scanning(
-    molecule: pd.Index, close: pd.Series, span: Tuple[int, int]
+    molecule: pd.Index, close: pd.Series, span: tuple[int, int]
 ) -> pd.DataFrame:
     """
     Implement the trend-scanning method.
@@ -81,9 +82,7 @@ def find_trend_using_trend_scanning(
         - 't-Value': The t-value of the most significant trend found.
         - 'Trend': The sign of the trend (-1, 0, or 1).
     """
-    outputs = pd.DataFrame(
-        index=molecule, columns=["End Time", "t-Value", "Trend"]
-    )
+    outputs = pd.DataFrame(index=molecule, columns=["End Time", "t-Value", "Trend"])
 
     # --- SUGGESTION: Add robustness check for span ---
     # Ensure min_span < max_span and min_span is at least 2 for OLS.
@@ -94,15 +93,15 @@ def find_trend_using_trend_scanning(
     spans = range(*span)
     # Use span[1] - 1 directly. It's safer than max(spans)
     # which fails on an empty range.
-    max_span_val = span[1] - 1 
+    max_span_val = span[1] - 1
 
     for index in molecule:
         t_values = pd.Series(dtype="float64")
-        
+
         try:
             location = close.index.get_loc(index)
         except KeyError:
-            continue # Event timestamp not in close index
+            continue  # Event timestamp not in close index
 
         # Ensure we don't scan past the end of the series
         if location + max_span_val >= close.shape[0]:
@@ -115,11 +114,9 @@ def find_trend_using_trend_scanning(
             # End of this specific window
             tail_time = close.index[location + span_val - 1]
             window_prices = close.loc[index:tail_time]
-            
-            t_values.loc[tail_time] = calculate_t_value_linear_regression(
-                window_prices
-            )
-        
+
+            t_values.loc[tail_time] = calculate_t_value_linear_regression(window_prices)
+
         if t_values.empty:
             continue
 
@@ -127,7 +124,7 @@ def find_trend_using_trend_scanning(
         # Use idxmax on the absolute values, but get the original t-value
         best_t_value_idx = t_values.replace([-np.inf, np.inf, np.nan], 0).abs().idxmax()
         best_t_value = t_values[best_t_value_idx]
-        
+
         outputs.loc[index] = [
             vertical_barrier_time,
             best_t_value,

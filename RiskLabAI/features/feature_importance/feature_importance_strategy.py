@@ -3,8 +3,10 @@ Abstract Base Class for feature importance strategies.
 """
 
 from abc import ABC, abstractmethod
-import pandas as pd
 from typing import Any
+
+import pandas as pd
+
 
 class FeatureImportanceStrategy(ABC):
     """
@@ -14,9 +16,7 @@ class FeatureImportanceStrategy(ABC):
     """
 
     @abstractmethod
-    def compute(
-        self, x: pd.DataFrame, y: pd.Series, **kwargs: Any
-    ) -> pd.DataFrame:
+    def compute(self, x: pd.DataFrame, y: pd.Series, **kwargs: Any) -> pd.DataFrame:
         """
         Abstract method to compute feature importance.
 

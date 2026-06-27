@@ -4,7 +4,7 @@ Provides a simple terminal-style progress bar.
 
 import sys
 import time
-from typing import Optional
+
 
 def progress_bar(
     current_progress: int,
@@ -30,7 +30,7 @@ def progress_bar(
     """
     if total_progress == 0:
         return
-    
+
     # Check if task is completed
     if current_progress == total_progress:
         sys.stdout.write(
@@ -38,7 +38,7 @@ def progress_bar(
         )
     else:
         percentage = current_progress / total_progress
-        
+
         # Handle the very first iteration
         if percentage == 0:
             arrow = ""
@@ -46,7 +46,7 @@ def progress_bar(
             # Safely calculate arrow length, ensuring it doesn't go below -1
             arrow_length = int(round(percentage * bar_length) - 1)
             arrow = "-" * max(0, arrow_length) + ">"
-        
+
         spaces = " " * (bar_length - len(arrow))
         elapsed_time_sec = time.time() - start_time
 
@@ -64,5 +64,5 @@ def progress_bar(
         sys.stdout.write(
             f"\rCompleted: [{arrow + spaces}] {percentage*100:.0f}% - {remaining_time_str}."
         )
-    
+
     sys.stdout.flush()

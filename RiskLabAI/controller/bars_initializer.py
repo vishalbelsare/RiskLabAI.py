@@ -3,22 +3,28 @@ Controller class to act as a factory for initializing
 various bar types (Standard, Time, Imbalance, Run).
 """
 
-from typing import Tuple, Union, Dict, Callable, Optional, Any
+from typing import Any, Callable, Optional, Union
+
 import pandas as pd
+
+from RiskLabAI.data.structures.abstract_bars import AbstractBars
 
 # Import bar types
 from RiskLabAI.data.structures.imbalance_bars import (
-    ExpectedImbalanceBars, FixedImbalanceBars
+    ExpectedImbalanceBars,
+    FixedImbalanceBars,
 )
 from RiskLabAI.data.structures.run_bars import ExpectedRunBars, FixedRunBars
 from RiskLabAI.data.structures.standard_bars import StandardBars
 from RiskLabAI.data.structures.time_bars import TimeBars
-from RiskLabAI.data.structures.abstract_bars import AbstractBars
 
 # Import constants
 from RiskLabAI.utils.constants import (
-    CUMULATIVE_DOLLAR, CUMULATIVE_VOLUME, CUMULATIVE_TICKS
+    CUMULATIVE_DOLLAR,
+    CUMULATIVE_TICKS,
+    CUMULATIVE_VOLUME,
 )
+
 
 class BarsInitializerController:
     """
@@ -32,7 +38,7 @@ class BarsInitializerController:
         """
         Initializes the controller and maps method names to methods.
         """
-        self.method_name_to_method: Dict[str, Callable[..., AbstractBars]] = {
+        self.method_name_to_method: dict[str, Callable[..., AbstractBars]] = {
             "expected_dollar_imbalance_bars": self.initialize_expected_dollar_imbalance_bars,
             "expected_volume_imbalance_bars": self.initialize_expected_volume_imbalance_bars,
             "expected_tick_imbalance_bars": self.initialize_expected_tick_imbalance_bars,
@@ -56,9 +62,9 @@ class BarsInitializerController:
         window_size_for_expected_n_ticks_estimation: int = 10000,
         window_size_for_expected_imbalance_estimation: int = 10000,
         initial_estimate_of_expected_n_ticks_in_bar: int = 20000,
-        expected_ticks_number_bounds: Optional[Tuple[float, float]] = None,
+        expected_ticks_number_bounds: Optional[tuple[float, float]] = None,
         analyse_thresholds: bool = False,
-        **kwargs: Any, # Accept extra kwargs but don't use them
+        **kwargs: Any,  # Accept extra kwargs but don't use them
     ) -> ExpectedImbalanceBars:
         """
         Initialize expected dollar imbalance bars.
@@ -77,7 +83,7 @@ class BarsInitializerController:
         window_size_for_expected_n_ticks_estimation: int = 10000,
         initial_estimate_of_expected_n_ticks_in_bar: int = 20000,
         window_size_for_expected_imbalance_estimation: int = 10000,
-        expected_ticks_number_bounds: Optional[Tuple[float, float]] = None,
+        expected_ticks_number_bounds: Optional[tuple[float, float]] = None,
         analyse_thresholds: bool = False,
         **kwargs: Any,
     ) -> ExpectedImbalanceBars:
@@ -96,7 +102,7 @@ class BarsInitializerController:
         window_size_for_expected_n_ticks_estimation: int = 10000,
         initial_estimate_of_expected_n_ticks_in_bar: int = 20000,
         window_size_for_expected_imbalance_estimation: int = 10000,
-        expected_ticks_number_bounds: Optional[Tuple[float, float]] = None,
+        expected_ticks_number_bounds: Optional[tuple[float, float]] = None,
         analyse_thresholds: bool = False,
         **kwargs: Any,
     ) -> ExpectedImbalanceBars:
@@ -160,7 +166,7 @@ class BarsInitializerController:
         window_size_for_expected_n_ticks_estimation: int = 10000,
         initial_estimate_of_expected_n_ticks_in_bar: int = 20000,
         window_size_for_expected_imbalance_estimation: int = 10000,
-        expected_ticks_number_bounds: Optional[Tuple[float, float]] = None,
+        expected_ticks_number_bounds: Optional[tuple[float, float]] = None,
         analyse_thresholds: bool = False,
         **kwargs: Any,
     ) -> ExpectedRunBars:
@@ -179,7 +185,7 @@ class BarsInitializerController:
         window_size_for_expected_n_ticks_estimation: int = 10000,
         initial_estimate_of_expected_n_ticks_in_bar: int = 20000,
         window_size_for_expected_imbalance_estimation: int = 10000,
-        expected_ticks_number_bounds: Optional[Tuple[float, float]] = None,
+        expected_ticks_number_bounds: Optional[tuple[float, float]] = None,
         analyse_thresholds: bool = False,
         **kwargs: Any,
     ) -> ExpectedRunBars:
@@ -198,7 +204,7 @@ class BarsInitializerController:
         window_size_for_expected_n_ticks_estimation: int = 10000,
         initial_estimate_of_expected_n_ticks_in_bar: int = 20000,
         window_size_for_expected_imbalance_estimation: int = 10000,
-        expected_ticks_number_bounds: Optional[Tuple[float, float]] = None,
+        expected_ticks_number_bounds: Optional[tuple[float, float]] = None,
         analyse_thresholds: bool = False,
         **kwargs: Any,
     ) -> ExpectedRunBars:

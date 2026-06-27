@@ -8,15 +8,12 @@ import numpy as np
 import pandas as pd
 from scipy.linalg import block_diag
 from sklearn.covariance import LedoitWolf
-from typing import Tuple
 
 # Import the utility from the denoising module
 from RiskLabAI.data.denoise.denoising import corr_to_cov
 
-def random_cov(
-    num_columns: int,
-    num_factors: int
-) -> np.ndarray:
+
+def random_cov(num_columns: int, num_factors: int) -> np.ndarray:
     """
     Generate a random covariance matrix.
 
@@ -34,9 +31,7 @@ def random_cov(
 
 
 def form_block_matrix(
-    n_blocks: int,
-    block_size: int,
-    block_correlation: float
+    n_blocks: int, block_size: int, block_correlation: float
 ) -> np.ndarray:
     """
     Forms a block diagonal correlation matrix.
@@ -57,10 +52,8 @@ def form_block_matrix(
 
 
 def form_true_matrix(
-    n_blocks: int,
-    block_size: int,
-    block_correlation: float
-) -> Tuple[np.ndarray, np.ndarray]:
+    n_blocks: int, block_size: int, block_correlation: float
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Forms a shuffled block diagonal correlation matrix and the
     corresponding covariance matrix.
@@ -79,19 +72,16 @@ def form_true_matrix(
     cols = corr0.columns.tolist()
     np.random.shuffle(cols)
     corr0 = corr0[cols].loc[cols].copy(deep=True).values
-    
-    std0 = np.random.uniform(.05, .2, corr0.shape[0])
+
+    std0 = np.random.uniform(0.05, 0.2, corr0.shape[0])
     cov0 = corr_to_cov(corr0, std0)
     mu0 = np.random.normal(std0, std0, cov0.shape[0]).reshape(-1, 1)
     return mu0, cov0
 
 
 def simulates_cov_mu(
-    mu0: np.ndarray,
-    cov0: np.ndarray,
-    n_obs: int,
-    shrink: bool = False
-) -> Tuple[np.ndarray, np.ndarray]:
+    mu0: np.ndarray, cov0: np.ndarray, n_obs: int, shrink: bool = False
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Simulates multivariate normal observations and computes the
     sample mean and covariance.

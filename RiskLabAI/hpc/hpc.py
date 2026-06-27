@@ -5,21 +5,27 @@ Provides a set of functions to parallelize operations, especially
 on pandas objects, using Python's multiprocessing and Joblib.
 """
 
-import multiprocessing as mp
-import pandas as pd
-import numpy as np
 import datetime as dt
+import logging
+import multiprocessing as mp
 import time
+from collections.abc import Iterable
+from typing import Any, Callable, Optional, Union
+
 import joblib  # <-- Added missing import
-from typing import List, Dict, Any, Callable, Tuple, Union, Iterable, Optional
+import numpy as np
+import pandas as pd
+
+logger = logging.getLogger(__name__)
+
 
 def parallel_run(
     func: Callable[..., Any],
     iterable: Iterable[Any],
     num_cpus: int = -1,
     lin_partition: bool = False,
-    **kwargs
-) -> List[Any]:
+    **kwargs,
+) -> list[Any]:
     """
     Executes a function in parallel over an iterable using Joblib.
 
@@ -58,7 +64,7 @@ def parallel_run(
         except TypeError:
             iterable = list(iterable)
             iterable_len = len(iterable)
-            
+
         num_atoms = num_cpus
         iterable_partition = np.array_split(range(iterable_len), num_atoms)
         jobs = (iterable_partition[i] for i in range(num_atoms))
@@ -66,7 +72,7 @@ def parallel_run(
         results = joblib.Parallel(n_jobs=num_cpus)(
             joblib.delayed(func)(job, **kwargs) for job in jobs
         )
-        
+
         # Flatten the list of lists
         return [item for sublist in results for item in sublist]
 
@@ -100,26 +106,24 @@ def report_progress(
     """
     progress = job_number / total_jobs
     elapsed_time_min = (time.time() - start_time) / 60.0
-    
+
     # Avoid division by zero if progress is 0
     remaining_time_min = 0.0
     if progress > 0:
         remaining_time_min = elapsed_time_min * (1 / progress - 1)
-    
-    timestamp = dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+    timestamp = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     message = (
         f"{timestamp} {progress*100:.2f}% {task} done after "
         f"{elapsed_time_min:.2f} minutes. Remaining {remaining_time_min:.2f} minutes."
     )
-    
-    if job_number < total_jobs:
-        print(message, end='\r')
-    else:
-        # Print a newline at the end
-        print(message)
+
+    # Progress is emitted via logging (configure the 'RiskLabAI' logger to see
+    # it; the library is silent by default).
+    logger.info(message)
 
 
-def expand_call(kargs: Dict[str, Any]) -> Any:
+def expand_call(kargs: dict[str, Any]) -> Any:
     """
     Wrapper function to expand keyword arguments for a callback.
 
@@ -137,13 +141,13 @@ def expand_call(kargs: Dict[str, Any]) -> Any:
     Any
         The output of the callback function.
     """
-    func = kargs.pop('func')
+    func = kargs.pop("func")
     return func(**kargs)
 
 
 def process_jobs(
-    jobs: List[Dict[str, Any]], task: Optional[str] = None, num_threads: int = -1
-) -> List[Any]:
+    jobs: list[dict[str, Any]], task: Optional[str] = None, num_threads: int = -1
+) -> list[Any]:
     """
     Process a list of jobs in parallel using multiprocessing.
 
@@ -166,11 +170,11 @@ def process_jobs(
         A list containing the results from all jobs.
     """
     if task is None:
-        task = jobs[0]['func'].__name__
+        task = jobs[0]["func"].__name__
 
     # <-- Handle sequential case for debugging
     if num_threads == 1:
-        print(f"Running {len(jobs)} jobs sequentially for debugging.")
+        logger.debug("Running %d jobs sequentially for debugging.", len(jobs))
         return process_jobs_sequential(jobs)
 
     # <-- Handle -1 for all CPUs
@@ -180,19 +184,19 @@ def process_jobs(
     with mp.Pool(processes=num_threads) as pool:
         outputs = []
         start_time = time.time()
-        
+
         # Use imap_unordered for efficient processing
         imap_results = pool.imap_unordered(expand_call, jobs)
-        
+
         # Process results as they complete
         for i, result in enumerate(imap_results, 1):
             outputs.append(result)
             report_progress(i, len(jobs), start_time, task)
-            
+
     return outputs
 
 
-def process_jobs_sequential(jobs: List[Dict[str, Any]]) -> List[Any]:
+def process_jobs_sequential(jobs: list[dict[str, Any]]) -> list[Any]:
     """
     Run jobs sequentially (single-thread). Useful for debugging.
 
@@ -210,13 +214,13 @@ def process_jobs_sequential(jobs: List[Dict[str, Any]]) -> List[Any]:
     start_time = time.time()
     task = "Sequential Processing"
     if jobs:
-        task = jobs[0].get('func', lambda: None).__name__
+        task = jobs[0].get("func", lambda: None).__name__
 
     for i, job in enumerate(jobs, 1):
         output_ = expand_call(job)
         output.append(output_)
         report_progress(i, len(jobs), start_time, task)
-        
+
     return output
 
 
@@ -241,7 +245,7 @@ def linear_partitions(num_atoms: int, num_threads: int) -> np.ndarray:
     n_parts = min(num_threads, num_atoms)
     if n_parts == 0:
         return np.array([0])
-        
+
     partitions = np.linspace(0, num_atoms, n_parts + 1)
     partitions = np.ceil(partitions).astype(int)
     return partitions
@@ -276,7 +280,7 @@ def nested_partitions(
     """
     partitions = [0]
     n_threads_ = min(num_threads, num_atoms)
-    
+
     if n_threads_ == 0:
         return np.array([0])
 
@@ -287,24 +291,24 @@ def nested_partitions(
         )
         part_val = (-1 + part_size**0.5) / 2.0
         partitions.append(part_val)
-        
+
     partitions = np.round(partitions).astype(int)
-    
+
     if upper_triangle:  # The first rows are the heaviest
         partitions = np.cumsum(np.diff(partitions)[::-1])
         partitions = np.append(np.array([0]), partitions)
-        
+
     return partitions
 
 
 def mp_pandas_obj(
     func: Callable[..., pd.Series],
-    pandas_object: Tuple[str, pd.Index],
+    pandas_object: tuple[str, pd.Index],
     num_threads: int = -1,
     mp_batches: int = 1,
     linear_partition: bool = True,
-    **kwargs: Any
-) -> Union[pd.DataFrame, pd.Series, List[Any]]:
+    **kwargs: Any,
+) -> Union[pd.DataFrame, pd.Series, list[Any]]:
     """
     Parallelize a function call on a pandas object (DataFrame/Series).
 
@@ -342,17 +346,13 @@ def mp_pandas_obj(
     # <-- Resolve num_threads here to correctly handle mp_batches
     if num_threads == -1:
         num_threads = mp.cpu_count()
-        
+
     total_parts = num_threads * mp_batches
-    
+
     if linear_partition:
-        parts = linear_partitions(
-            len(pandas_object[1]), total_parts
-        )
+        parts = linear_partitions(len(pandas_object[1]), total_parts)
     else:
-        parts = nested_partitions(
-            len(pandas_object[1]), total_parts
-        )
+        parts = nested_partitions(len(pandas_object[1]), total_parts)
 
     jobs = []
     for i in range(1, len(parts)):
@@ -365,15 +365,15 @@ def mp_pandas_obj(
 
     # <-- Pass num_threads to process_jobs, which now handles 1 correctly
     out = process_jobs(jobs, num_threads=num_threads)
-    
+
     if not out:
-        return pd.DataFrame() # Return empty DataFrame if no results
+        return pd.DataFrame()  # Return empty DataFrame if no results
 
     if isinstance(out[0], pd.DataFrame):
         result_df = pd.concat(out)
     elif isinstance(out[0], pd.Series):
         result_df = pd.concat(out)
     else:
-        return out # Return list of other objects
+        return out  # Return list of other objects
 
     return result_df.sort_index()

@@ -3,16 +3,16 @@ Generates synthetic price data using a Heston-Merton model
 with Markov-switching regimes.
 """
 
-from typing import Dict, List, Tuple, Union, Optional
+from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
-import quantecon.markov as qe
-from numba import jit
 from joblib import Parallel, delayed
+from numba import jit
 
 # Type hint for regime parameters
-RegimeParams = Dict[str, Union[float, List[float]]]
+RegimeParams = dict[str, Union[float, list[float]]]
+
 
 @jit(nopython=True)
 def compute_log_returns(
@@ -95,7 +95,7 @@ def compute_log_returns(
 
         # Ensure v[i] is non-negative for sqrt
         v_i_safe = max(v[i], 0.0)
-        
+
         # Volatility process (Heston)
         v[i + 1] = (
             v[i]
@@ -158,12 +158,18 @@ def heston_merton_log_returns(
     """
     # Ensure vectors are of length n_steps
     params = [
-        mu_vector, kappa_vector, theta_vector, xi_vector, rho_vector,
-        lambda_vector, m_vector, v_vector
+        mu_vector,
+        kappa_vector,
+        theta_vector,
+        xi_vector,
+        rho_vector,
+        lambda_vector,
+        m_vector,
+        v_vector,
     ]
     if not all(len(p) == n_steps for p in params):
         raise ValueError("All parameter vectors must have length `n_steps`")
-    
+
     rng = np.random.default_rng(random_state)
     dt = total_time / n_steps
     sqrt_dt = np.sqrt(dt)
@@ -172,14 +178,14 @@ def heston_merton_log_returns(
     z = np.zeros((n_steps, 3))
     n = np.zeros(n_steps)
     for i in range(n_steps):
-        cov_matrix = np.array([
-            [1.0,           rho_vector[i], 0.0],
-            [rho_vector[i], 1.0,           0.0],
-            [0.0,           0.0,           v_vector[i] ** 2],
-        ])
-        z[i] = rng.multivariate_normal(
-            [0.0, 0.0, m_vector[i]], cov_matrix
+        cov_matrix = np.array(
+            [
+                [1.0, rho_vector[i], 0.0],
+                [rho_vector[i], 1.0, 0.0],
+                [0.0, 0.0, v_vector[i] ** 2],
+            ]
         )
+        z[i] = rng.multivariate_normal([0.0, 0.0, m_vector[i]], cov_matrix)
         n[i] = rng.poisson(lambda_vector[i] * dt)
 
     dw_stock = z[:, 0]
@@ -207,7 +213,7 @@ def heston_merton_log_returns(
 
 def align_params_length(
     regime_params: RegimeParams,
-) -> Tuple[Dict[str, List[float]], int]:
+) -> tuple[dict[str, list[float]], int]:
     """
     Align the parameter lists within a regime to be the same length.
 
@@ -226,18 +232,16 @@ def align_params_length(
         - The aligned regime parameter dictionary.
         - The maximum length (number of steps) for this regime.
     """
-    max_len = max(
-        len(v) if isinstance(v, list) else 1 for v in regime_params.values()
-    )
+    max_len = max(len(v) if isinstance(v, list) else 1 for v in regime_params.values())
 
-    aligned_params: Dict[str, List[float]] = {}
+    aligned_params: dict[str, list[float]] = {}
     for key, value in regime_params.items():
         if isinstance(value, list):
             if len(value) < max_len:
                 # Extend list by repeating last value
                 aligned_params[key] = value + [value[-1]] * (max_len - len(value))
             else:
-                aligned_params[key] = value[:max_len] # Truncate if too long
+                aligned_params[key] = value[:max_len]  # Truncate if too long
         else:
             # Broadcast float to list
             aligned_params[key] = [value] * max_len
@@ -246,12 +250,12 @@ def align_params_length(
 
 
 def generate_prices_from_regimes(
-    regimes: Dict[str, RegimeParams],
+    regimes: dict[str, RegimeParams],
     transition_matrix: np.ndarray,
     total_time: float,
     n_steps: int,
     random_state: Optional[int] = None,
-) -> Tuple[pd.Series, np.ndarray]:
+) -> tuple[pd.Series, np.ndarray]:
     """
     Generate a price series from a Markov-switching regime model.
 
@@ -275,38 +279,44 @@ def generate_prices_from_regimes(
         - The array of simulated regime names for each step.
     """
     rng = np.random.default_rng(random_state)
-    
+
     # 1. Simulate the Markov Chain
+    import quantecon.markov as qe  # optional dependency: RiskLabAI[synth]
+
     regime_names = list(regimes.keys())
     markov_chain = qe.MarkovChain(transition_matrix, state_values=regime_names)
-    simulated_regimes = markov_chain.simulate(
-        ts_length=n_steps, random_state=rng
-    )
+    simulated_regimes = markov_chain.simulate(ts_length=n_steps, random_state=rng)
 
     # 2. Unpack parameters based on simulated regimes
-    param_lists: Dict[str, List[float]] = {
-        "mu": [], "kappa": [], "theta": [], "xi": [],
-        "rho": [], "lam": [], "m": [], "v": [],
+    param_lists: dict[str, list[float]] = {
+        "mu": [],
+        "kappa": [],
+        "theta": [],
+        "xi": [],
+        "rho": [],
+        "lam": [],
+        "m": [],
+        "v": [],
     }
-    
+
     regime_path_expanded = []
-    
+
     current_step = 0
     while current_step < n_steps:
         regime_name = simulated_regimes[current_step]
         params, regime_len = align_params_length(regimes[regime_name].copy())
-        
+
         steps_to_take = min(regime_len, n_steps - current_step)
-        
+
         for key in param_lists:
             param_lists[key].extend(params[key][:steps_to_take])
-            
+
         regime_path_expanded.extend([regime_name] * steps_to_take)
         current_step += steps_to_take
 
     # 3. Finalize parameter arrays and regime path
     simulated_regimes_final = np.array(regime_path_expanded)
-    param_arrays: Dict[str, np.ndarray] = {
+    param_arrays: dict[str, np.ndarray] = {
         key: np.array(val) for key, val in param_lists.items()
     }
 
@@ -334,25 +344,24 @@ def generate_prices_from_regimes(
 
     # 6. Create price series with a Business Day index
     start_day = "2000-01-01"
-    business_days = pd.date_range(
-        start=start_day, periods=n_steps, freq="B"
-    )
-    
+    business_days = pd.date_range(start=start_day, periods=n_steps, freq="B")
+
     price_series = pd.Series(log_returns, index=business_days).ffill()
     prices = 100 * np.exp(price_series.cumsum())
     prices.name = "Price"
 
     return prices, simulated_regimes_final
 
+
 def parallel_generate_prices(
     number_of_paths: int,
-    regimes: Dict[str, RegimeParams],
+    regimes: dict[str, RegimeParams],
     transition_matrix: np.ndarray,
     total_time: float,
     n_steps: int,
     random_state: Optional[int] = None,
     n_jobs: int = 1,
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Parallel generation of price paths.
 
@@ -382,7 +391,7 @@ def parallel_generate_prices(
     rng = np.random.default_rng(random_state)
     # Generate unique seeds for each parallel job
     random_states = rng.integers(0, 10 * number_of_paths, size=number_of_paths)
-    
+
     results = Parallel(n_jobs=n_jobs)(
         delayed(generate_prices_from_regimes)(
             regimes,
@@ -398,7 +407,7 @@ def parallel_generate_prices(
 
     prices_df = pd.concat(prices, axis=1)
     prices_df.columns = range(number_of_paths)
-    
+
     simulated_regimes_df = pd.DataFrame(simulated_regimes).T
     simulated_regimes_df.columns = range(number_of_paths)
     simulated_regimes_df.index = prices_df.index

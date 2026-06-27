@@ -6,13 +6,15 @@ Reference:
     De Prado, M. (2020) Advances in financial machine learning. John Wiley & Sons.
 """
 
+from typing import Optional
+
 import numpy as np
 import pandas as pd
 from scipy.linalg import block_diag
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_samples
 from sklearn.utils import check_random_state
-from typing import Tuple, Dict, List, Optional
+
 
 def covariance_to_correlation(covariance: np.ndarray) -> np.ndarray:
     r"""
@@ -35,21 +37,21 @@ def covariance_to_correlation(covariance: np.ndarray) -> np.ndarray:
     np.ndarray
         The corresponding correlation matrix.
     """
-    std = np.sqrt(np.diag(covariance))
-    correlation = covariance / np.outer(std, std)
-    
-    # Handle numerical errors
-    correlation[correlation < -1] = -1.0
-    correlation[correlation > 1] = 1.0
-    
-    return correlation
+    # Single source of truth: RiskLabAI.data.denoise.cov_to_corr implements the
+    # same conversion (Snippet 2.3) with added zero-std and diagonal safeguards.
+    # Output is identical to floating-point precision for valid covariance
+    # matrices. Imported locally to avoid any import cycle at module load.
+    from RiskLabAI.data.denoise.denoising import cov_to_corr
+
+    return cov_to_corr(covariance)
+
 
 def cluster_k_means_base(
     correlation: pd.DataFrame,
     max_clusters: int = 10,
     iterations: int = 10,
     random_state: Optional[int] = None,
-) -> Tuple[pd.DataFrame, Dict[int, List[str]], pd.Series]:
+) -> tuple[pd.DataFrame, dict[int, list[str]], pd.Series]:
     """
     Perform the base K-Means clustering step.
 
@@ -79,33 +81,36 @@ def cluster_k_means_base(
         - clusters: A dictionary mapping cluster ID to a list of item names.
         - silhouette_scores: A Series of silhouette scores for each item.
     """
-    # Calculate distance matrix
-    distance = ((1 - correlation.fillna(0)) / 2.0) ** 0.5
-    
+    # Calculate distance matrix via the canonical angular-distance helper
+    # (single source of truth; imported locally to avoid an import cycle).
+    from RiskLabAI.data.distance.distance_metric import calculate_distance
+
+    distance = calculate_distance(correlation.fillna(0), metric="angular")
+
     best_kmeans = None
     best_silhouette_scores = None
     best_score = -np.inf
 
     rng = check_random_state(random_state)
-    
+
     for _ in range(iterations):
         for n_clusters in range(2, max_clusters + 1):
             # Use a different random_state for each K-Means fit
             iter_seed = rng.randint(0, np.iinfo(np.int32).max)
-            
+
             kmeans = KMeans(
                 n_clusters=n_clusters,
                 n_init=1,  # We handle iterations externally
                 random_state=iter_seed,
             )
             kmeans.fit(distance)
-            
+
             silhouette_scores_ = silhouette_samples(distance, kmeans.labels_)
-            
+
             # Use silhouette score t-statistic (mean/std) as the quality metric
             stat_mean = silhouette_scores_.mean()
             stat_std = silhouette_scores_.std()
-            
+
             if stat_std == 0:
                 # Avoid division by zero if all silhouette scores are identical
                 score = np.sign(stat_mean) * np.inf
@@ -129,7 +134,7 @@ def cluster_k_means_base(
         i: correlation.columns[np.where(best_kmeans.labels_ == i)[0]].tolist()
         for i in np.unique(best_kmeans.labels_)
     }
-    
+
     silhouette_series = pd.Series(best_silhouette_scores, index=distance.index)
 
     return correlation_sorted, clusters, silhouette_series
@@ -137,9 +142,9 @@ def cluster_k_means_base(
 
 def make_new_outputs(
     correlation: pd.DataFrame,
-    clusters_1: Dict[int, List[str]],
-    clusters_2: Dict[int, List[str]],
-) -> Tuple[pd.DataFrame, Dict[int, List[str]], pd.Series]:
+    clusters_1: dict[int, list[str]],
+    clusters_2: dict[int, list[str]],
+) -> tuple[pd.DataFrame, dict[int, list[str]], pd.Series]:
     """
     Merge two disjoint sets of clusters and re-calculate metrics.
 
@@ -174,8 +179,11 @@ def make_new_outputs(
     ]
     correlation_new = correlation.loc[index_new, index_new]
 
-    # Calculate new silhouette scores based on the *original* distance
-    distance = ((1 - correlation.fillna(0)) / 2.0) ** 0.5
+    # Calculate new silhouette scores based on the *original* distance,
+    # via the canonical angular-distance helper (single source of truth).
+    from RiskLabAI.data.distance.distance_metric import calculate_distance
+
+    distance = calculate_distance(correlation.fillna(0), metric="angular")
     labels_kmeans = np.zeros(len(distance.columns))
 
     # Create the label array for silhouette_samples
@@ -188,12 +196,13 @@ def make_new_outputs(
     )
     return correlation_new, clusters_new, silhouette_new
 
+
 def cluster_k_means_top(
     correlation: pd.DataFrame,
     max_clusters: Optional[int] = None,
     iterations: int = 10,
     random_state: Optional[int] = None,
-) -> Tuple[pd.DataFrame, Dict[int, List[str]], pd.Series]:
+) -> tuple[pd.DataFrame, dict[int, list[str]], pd.Series]:
     """
     Perform Optimized Nested Clustering (ONC).
 
@@ -224,13 +233,13 @@ def cluster_k_means_top(
     n_cols = correlation.shape[1]
     if max_clusters is None:
         max_clusters = n_cols - 1
-    
+
     max_clusters = min(max_clusters, n_cols - 1)
     if max_clusters < 2:
         return (
             correlation,
             {0: correlation.columns.tolist()},
-            pd.Series(dtype='float64'),
+            pd.Series(dtype="float64"),
         )
 
     # 1. Run base clustering
@@ -247,34 +256,30 @@ def cluster_k_means_top(
         for i in clusters
         if silhouette[clusters[i]].std() > 0
     }
-    
+
     if not cluster_t_stats:
-        return corr_sorted, clusters, silhouette # No valid clusters found
+        return corr_sorted, clusters, silhouette  # No valid clusters found
 
     t_stat_mean = np.mean(list(cluster_t_stats.values()))
 
     # 3. Identify clusters to re-cluster
-    redo_clusters = [
-        i for i, t_stat in cluster_t_stats.items() if t_stat < t_stat_mean
-    ]
+    redo_clusters = [i for i, t_stat in cluster_t_stats.items() if t_stat < t_stat_mean]
 
     if len(redo_clusters) <= 1:
         # Base case: All clusters are stable, or only one is unstable
         return corr_sorted, clusters, silhouette
     else:
         # 4. Recurse on unstable clusters
-        keys_redo = [
-            item for i in redo_clusters for item in clusters[i]
-        ]
+        keys_redo = [item for i in redo_clusters for item in clusters[i]]
         corr_temp = correlation.loc[keys_redo, keys_redo]
-        
+
         # Keep track of mean t-stat for comparison
         t_stat_mean_redo = np.mean([cluster_t_stats[i] for i in redo_clusters])
-        
+
         # Calculate remaining clusters for recursive call
         n_clusters_good = len(clusters) - len(redo_clusters)
         remained_n_clusters = max_clusters - n_clusters_good
-        
+
         # Recursive call
         corr_sorted_2, clusters_2, silh_2 = cluster_k_means_top(
             corr_temp,
@@ -284,9 +289,7 @@ def cluster_k_means_top(
         )
 
         # 5. Merge results
-        clusters_1 = {
-            i: clusters[i] for i in clusters if i not in redo_clusters
-        }
+        clusters_1 = {i: clusters[i] for i in clusters if i not in redo_clusters}
         corr_new, clusters_new, silh_new = make_new_outputs(
             correlation, clusters_1, clusters_2
         )
@@ -297,10 +300,10 @@ def cluster_k_means_top(
             for i in clusters_new
             if silh_new[clusters_new[i]].std() > 0
         ]
-        
+
         if not new_t_stats:
-             return corr_sorted, clusters, silhouette # Re-clustering failed
-             
+            return corr_sorted, clusters, silhouette  # Re-clustering failed
+
         new_t_stat_mean = np.mean(new_t_stats)
 
         if new_t_stat_mean <= t_stat_mean_redo:
@@ -347,10 +350,10 @@ def random_covariance_sub(
     # Common factor
     data = rng.normal(size=(n_observations, 1))
     data = np.repeat(data, n_columns, axis=1)
-    
+
     # Idiosyncratic noise
     data += rng.normal(scale=sigma, size=data.shape)
-    
+
     covariance = np.cov(data, rowvar=False)
     return covariance
 
@@ -395,16 +398,14 @@ def random_block_covariance(
         replace=False,
     )
     parts.sort()
-    parts = np.append(
-        parts, n_columns - (block_size_min - 1) * n_blocks
-    )
+    parts = np.append(parts, n_columns - (block_size_min - 1) * n_blocks)
     parts = np.append(parts[0], np.diff(parts)) - 1 + block_size_min
 
     cov_list = []
     for col_size in parts:
         # Number of observations must be > number of columns
         n_obs = int(max(col_size * (col_size + 1) / 2.0, 100))
-        
+
         this_covariance = random_covariance_sub(
             n_obs, col_size, sigma, random_state=rng
         )
@@ -454,7 +455,7 @@ def random_block_correlation(
         sigma=0.5,
         random_state=rng,
     )
-    
+
     # Market component (noise)
     covariance2 = random_block_covariance(
         n_columns, 1, block_size_min=n_columns, sigma=1.0, random_state=rng

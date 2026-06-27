@@ -3,18 +3,20 @@ Hyperparameter tuning module that integrates with scikit-learn
 and the custom PurgedKFold cross-validators.
 """
 
+import warnings
+from typing import Any, Optional, Union
+
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 from sklearn.ensemble import BaggingClassifier
+from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 from sklearn.pipeline import Pipeline
-from typing import Dict, Any, List, Optional, Union
 
-# Import the controller from the refactored validation module
-from RiskLabAI.backtest.validation import CrossValidatorController
+# Cross-validators are created from the core registry (2.0.0 single source).
+from RiskLabAI.core import CROSS_VALIDATORS
 
 
-class MyPipeline(Pipeline):
+class SampleWeightedPipeline(Pipeline):
     """
     Custom pipeline class to correctly pass `sample_weight` to the
     final estimator's `fit` method.
@@ -26,7 +28,7 @@ class MyPipeline(Pipeline):
         y: pd.Series,
         sample_weight: Optional[np.ndarray] = None,
         **fit_params,
-    ) -> "MyPipeline":
+    ) -> "SampleWeightedPipeline":
         """
         Fit the pipeline, passing `sample_weight` to the final step.
 
@@ -43,14 +45,14 @@ class MyPipeline(Pipeline):
 
         Returns
         -------
-        MyPipeline
+        SampleWeightedPipeline
             The fitted pipeline.
         """
         if sample_weight is not None:
             # Add sample_weight to fit_params for the *last step*
             step_name = self.steps[-1][0]
             fit_params[f"{step_name}__sample_weight"] = sample_weight
-            
+
         return super().fit(X, y, **fit_params)
 
 
@@ -59,10 +61,10 @@ def clf_hyper_fit(
     label: pd.Series,
     times: pd.Series,
     pipe_clf: Pipeline,
-    param_grid: Dict[str, Any],
+    param_grid: dict[str, Any],
     validator_type: str = "purgedkfold",
-    validator_params: Optional[Dict[str, Any]] = None,
-    bagging: Optional[List[Union[int, float]]] = None,
+    validator_params: Optional[dict[str, Any]] = None,
+    bagging: Optional[list[Union[int, float]]] = None,
     rnd_search_iter: int = 0,
     n_jobs: int = -1,
     **fit_params,
@@ -79,7 +81,7 @@ def clf_hyper_fit(
     times : pd.Series
         Series of event start and end times for purging.
     pipe_clf : Pipeline
-        The scikit-learn pipeline (or `MyPipeline`) to tune.
+        The scikit-learn pipeline (or `SampleWeightedPipeline`) to tune.
     param_grid : dict
         Parameter grid for the search.
     validator_type : str, default='purgedkfold'
@@ -106,7 +108,7 @@ def clf_hyper_fit(
         The fitted grid search object, or a fitted Bagging pipeline.
     """
     if bagging is None:
-        bagging = [0, 0.0, 1.0] # Default to no bagging
+        bagging = [0, 0.0, 1.0]  # Default to no bagging
 
     if set(label.unique()) == {0, 1}:
         scoring = "f1"  # F1-score for meta-labeling
@@ -121,13 +123,13 @@ def clf_hyper_fit(
         }
     else:
         # Ensure 'times' is passed if not already present
-        if 'times' not in validator_params:
-            validator_params['times'] = times
+        if "times" not in validator_params:
+            validator_params["times"] = times
 
     # 1. Set up the custom cross-validator
-    inner_cv = CrossValidatorController(
-        validator_type, **validator_params
-    ).cross_validator
+    inner_cv = CROSS_VALIDATORS.create(
+        validator_type, filter_unknown_kwargs=True, **validator_params
+    )
 
     # 2. Set up the hyperparameter search
     if rnd_search_iter == 0:
@@ -147,17 +149,17 @@ def clf_hyper_fit(
             n_jobs=n_jobs,
             n_iter=rnd_search_iter,
         )
-        
+
     # 3. Fit the search
     gs = gs.fit(feature_data, label, **fit_params)
 
     # 4. (Optional) Fit bagging classifier on the best model
     if bagging[0] > 0:
         best_estimator = gs.best_estimator_
-        
+
         # Create a new pipeline with the best estimator's steps
-        bag_pipe = MyPipeline(best_estimator.steps)
-        
+        bag_pipe = SampleWeightedPipeline(best_estimator.steps)
+
         bag_clf = BaggingClassifier(
             estimator=bag_pipe,
             n_estimators=int(bagging[0]),
@@ -165,12 +167,31 @@ def clf_hyper_fit(
             max_features=float(bagging[2]),
             n_jobs=n_jobs,
         )
-        
+
         # Fit the bagging classifier
         bag_clf = bag_clf.fit(feature_data, label, **fit_params)
-        
+
         # Return as a pipeline
         return Pipeline([("bag", bag_clf)])
-    
+
     # 5. Return the best estimator found
     return gs.best_estimator_
+
+
+class MyPipeline(SampleWeightedPipeline):
+    """
+    Deprecated alias for :class:`SampleWeightedPipeline` (removed in 2.1.0).
+
+    Implemented as an explicit subclass rather than via ``deprecated_class`` so
+    that the scikit-learn ``__init__`` signature is preserved (estimators may
+    not use ``*args``/``**kwargs`` in their constructor).
+    """
+
+    def __init__(self, steps, *, memory=None, verbose=False):
+        warnings.warn(
+            "MyPipeline is deprecated and will be removed in 2.1.0; "
+            "use SampleWeightedPipeline instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__init__(steps, memory=memory, verbose=verbose)

@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import scipy.cluster.hierarchy as sch
 import scipy.spatial.distance as scd
-from typing import List
+
 
 def inverse_variance_weights(covariance_matrix: pd.DataFrame) -> np.ndarray:
     """
@@ -32,7 +32,7 @@ def inverse_variance_weights(covariance_matrix: pd.DataFrame) -> np.ndarray:
 
 
 def cluster_variance(
-    covariance_matrix: pd.DataFrame, clustered_items: List[str]
+    covariance_matrix: pd.DataFrame, clustered_items: list[str]
 ) -> float:
     """
     Compute the variance of a cluster using inverse-variance weighting.
@@ -51,13 +51,13 @@ def cluster_variance(
     """
     cov_slice = covariance_matrix.loc[clustered_items, clustered_items]
     weights = inverse_variance_weights(cov_slice).reshape(-1, 1)
-    
+
     # V_cluster = w' * C * w
     cluster_var = np.dot(np.dot(weights.T, cov_slice), weights)[0, 0]
     return cluster_var
 
 
-def quasi_diagonal(linkage_matrix: np.ndarray) -> List[int]:
+def quasi_diagonal(linkage_matrix: np.ndarray) -> list[int]:
     """
     Return a sorted list of original item indices for a quasi-diagonal matrix.
 
@@ -95,7 +95,7 @@ def quasi_diagonal(linkage_matrix: np.ndarray) -> List[int]:
 
 
 def recursive_bisection(
-    covariance_matrix: pd.DataFrame, sorted_items: List[str]
+    covariance_matrix: pd.DataFrame, sorted_items: list[str]
 ) -> pd.Series:
     """
     Compute the Hierarchical Risk Parity (HRP) weights
@@ -129,20 +129,20 @@ def recursive_bisection(
         for i in range(0, len(clustered_items), 2):
             cluster_0 = clustered_items[i]
             cluster_1 = clustered_items[i + 1]
-            
+
             # 1. Calculate variance for each cluster
             variance_0 = cluster_variance(covariance_matrix, cluster_0)
             variance_1 = cluster_variance(covariance_matrix, cluster_1)
-            
+
             # 2. Calculate allocation factor (alpha)
             if variance_0 + variance_1 == 0:
-                alpha = 0.5 # Default to equal weight if both variances are zero
+                alpha = 0.5  # Default to equal weight if both variances are zero
             else:
                 alpha = 1 - variance_0 / (variance_0 + variance_1)
-            
+
             # 3. Apply weights
             weights[cluster_0] *= alpha
-            weights[cluster_1] *= (1 - alpha)
+            weights[cluster_1] *= 1 - alpha
 
     return weights
 
@@ -151,6 +151,11 @@ def distance_corr(corr_matrix: np.ndarray) -> np.ndarray:
     """
     Compute the distance matrix based on correlation.
     d = sqrt(0.5 * (1 - p))
+
+    Thin wrapper over the canonical angular-distance implementation
+    :func:`RiskLabAI.data.distance.distance_metric.calculate_distance`, the
+    single source of truth for the correlation-to-distance formula. Imported
+    locally to avoid an import cycle at module load.
 
     Parameters
     ----------
@@ -162,8 +167,9 @@ def distance_corr(corr_matrix: np.ndarray) -> np.ndarray:
     np.ndarray
         Distance matrix.
     """
-    distance_matrix = ((1 - corr_matrix) / 2.0) ** 0.5
-    return distance_matrix
+    from RiskLabAI.data.distance.distance_metric import calculate_distance
+
+    return calculate_distance(corr_matrix, metric="angular")
 
 
 def hrp(cov: pd.DataFrame, corr: pd.DataFrame) -> pd.Series:
@@ -193,16 +199,23 @@ def hrp(cov: pd.DataFrame, corr: pd.DataFrame) -> pd.Series:
     # 1. Calculate distance
     distance = distance_corr(corr_df.values)
 
-    dist_condensed = scd.squareform(distance, force='tovector')
+    # Enforce exact symmetry: a correlation matrix produced by ``cov_to_corr`` or
+    # by denoising can be asymmetric at the floating-point level, which makes
+    # ``squareform`` reject it ("Distance matrix must be symmetric"). Averaging
+    # with the transpose removes that asymmetry without changing the clustering.
+    distance = (distance + distance.T) / 2.0
+    np.fill_diagonal(distance, 0.0)
+
+    dist_condensed = scd.squareform(distance, force="tovector")
 
     # 2. Cluster
     link = sch.linkage(dist_condensed, "single")
-    
+
     # 3. Quasi-diagonalize
     sorted_items_idx = quasi_diagonal(link)
     sorted_items_names = corr_df.index[sorted_items_idx].tolist()
-    
+
     # 4. Recursive bisection
     hrp_portfolio = recursive_bisection(cov_df, sorted_items_names)
-    
+
     return hrp_portfolio.sort_index()

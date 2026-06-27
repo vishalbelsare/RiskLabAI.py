@@ -1,0 +1,45 @@
+# RiskLabAI.py - pinned runtime lockfile
+#
+# Reproducibility lock for the package's RUNTIME dependencies only
+# (the `[project].dependencies` table in pyproject.toml) plus their full
+# transitive closure, pinned to the versions installed in the validated
+# environment. Optional extras (pde/synth/plot/dev) are NOT locked here.
+#
+# Generation: pip-tools (`pip-compile`) was not available in the locked
+# environment, so this file was produced by the documented fallback - a
+# FILTERED freeze: the transitive closure of the 10 declared runtime
+# dependencies was resolved from installed package metadata
+# (importlib.metadata) and pinned to the installed versions. The full base
+# conda env is deliberately NOT captured; only what the package imports at
+# runtime appears below.
+#
+# Environment of record (see ENVIRONMENT.md for full detail):
+#   Python 3.12.3 (conda-forge) | Windows-10-10.0.19045-SP0 (AMD64)
+#   NumPy BLAS/LAPACK backend: MKL (mkl-sdl 2023.1)
+#
+# Recreate:  pip install -r requirements-lock.txt
+# Verify:    python -c "import numpy; numpy.show_config()"
+#
+# --- Declared runtime dependencies (pyproject [project].dependencies) ---
+joblib==1.3.2
+numba==0.59.1
+numpy==1.26.4
+pandas==2.2.3
+scikit-learn==1.2.2
+scipy==1.11.4
+statsmodels==0.14.5
+sympy==1.14.0
+ta==0.11.0
+tqdm==4.66.4
+#
+# --- Transitive dependencies (pulled in by the packages above) ---
+colorama==0.4.6
+llvmlite==0.42.0
+mpmath==1.3.0
+packaging==23.2
+patsy==0.5.6
+python-dateutil==2.8.2
+pytz==2024.1
+six==1.16.0
+threadpoolctl==3.6.0
+tzdata==2023.3

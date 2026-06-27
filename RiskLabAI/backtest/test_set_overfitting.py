@@ -3,11 +3,11 @@ Functions for calculating metrics related to test-set overfitting,
 including the expected maximum Sharpe Ratio and Type I/II errors.
 """
 
-from typing import List
 import numpy as np
 import pandas as pd
 import scipy.stats as ss
 from scipy.stats import norm
+
 
 def expected_max_sharpe_ratio(
     n_trials: int, mean_sharpe_ratio: float, std_sharpe_ratio: float
@@ -45,7 +45,7 @@ def expected_max_sharpe_ratio(
         return 0.0
     if n_trials == 1:
         return mean_sharpe_ratio
-        
+
     euler_gamma = 0.5772156649
 
     term1 = (1 - euler_gamma) * norm.ppf(1.0 - 1.0 / n_trials)
@@ -55,9 +55,10 @@ def expected_max_sharpe_ratio(
 
     return expected_max_sr
 
+
 def generate_max_sharpe_ratios(
     n_sims: int,
-    n_trials_list: List[int],
+    n_trials_list: list[int],
     std_sharpe_ratio: float,
     mean_sharpe_ratio: float,
 ) -> pd.DataFrame:
@@ -85,21 +86,20 @@ def generate_max_sharpe_ratios(
 
     for n_trials in n_trials_list:
         # Generate all simulations for this n_trials
-        sr_sims = rng.normal(
-            loc=0.0, scale=1.0, size=(n_sims, n_trials)
-        )
-        
+        sr_sims = rng.normal(loc=0.0, scale=1.0, size=(n_sims, n_trials))
+
         # Normalize (z-score) each simulation row
-        sr_sims = (sr_sims - sr_sims.mean(axis=1, keepdims=True)) / \
-                  sr_sims.std(axis=1, keepdims=True)
-        
+        sr_sims = (sr_sims - sr_sims.mean(axis=1, keepdims=True)) / sr_sims.std(
+            axis=1, keepdims=True
+        )
+
         # Scale by target mean and std
         sr_sims = mean_sharpe_ratio + sr_sims * std_sharpe_ratio
 
         # Get max SR for each simulation
         max_sr = sr_sims.max(axis=1)
-        
-        output_temp = pd.DataFrame({'max_SR': max_sr, 'n_trials': n_trials})
+
+        output_temp = pd.DataFrame({"max_SR": max_sr, "n_trials": n_trials})
         output_list.append(output_temp)
 
     return pd.concat(output_list, ignore_index=True)
@@ -108,7 +108,7 @@ def generate_max_sharpe_ratios(
 def mean_std_error(
     n_sims0: int,
     n_sims1: int,
-    n_trials: List[int],
+    n_trials: list[int],
     std_sharpe_ratio: float = 1.0,
     mean_sharpe_ratio: float = 0.0,
 ) -> pd.DataFrame:
@@ -147,7 +147,7 @@ def mean_std_error(
     expected_sr.index.name = "nTrials"
 
     error_list = []
-    
+
     # 2. Run n_sims1 experiments
     for _ in range(int(n_sims1)):
         # 3. Generate simulated max SRs
@@ -162,15 +162,17 @@ def mean_std_error(
 
         # 5. Calculate error
         error = avg_simulated_sr / expected_sr - 1.0
-        error_list.append(error.rename('error'))
+        error_list.append(error.rename("error"))
 
     all_errors = pd.concat(error_list, axis=1).T
 
     # 6. Compute mean and std of errors
-    output = pd.DataFrame({
-        "meanErr": all_errors.mean(),
-        "stdErr": all_errors.std(),
-    })
+    output = pd.DataFrame(
+        {
+            "meanErr": all_errors.mean(),
+            "stdErr": all_errors.std(),
+        }
+    )
 
     return output
 
@@ -209,12 +211,10 @@ def estimated_sharpe_ratio_z_statistics(
     float
         The calculated Z-statistic.
     """
-    denominator = (
-        1 - skew * sharpe_ratio + (kurt - 1) / 4.0 * sharpe_ratio**2
-    )
+    denominator = 1 - skew * sharpe_ratio + (kurt - 1) / 4.0 * sharpe_ratio**2
     if denominator <= 0:
         return np.nan
-        
+
     z = (sharpe_ratio - true_sharpe_ratio) * np.sqrt(t - 1)
     z /= np.sqrt(denominator)
 
@@ -282,20 +282,16 @@ def theta_for_type2_error(
     float
         The \(\theta\) parameter.
     """
-    denominator = (
-        1 - skew * sharpe_ratio + (kurt - 1) / 4.0 * sharpe_ratio**2
-    )
+    denominator = 1 - skew * sharpe_ratio + (kurt - 1) / 4.0 * sharpe_ratio**2
     if denominator <= 0:
         return np.nan
-        
+
     theta = true_sharpe_ratio * np.sqrt(t - 1)
     theta /= np.sqrt(denominator)
     return theta
 
 
-def strategy_type2_error_probability(
-    alpha_k: float, k: int, theta: float
-) -> float:
+def strategy_type2_error_probability(alpha_k: float, k: int, theta: float) -> float:
     r"""
     Calculate the Type II error probability (beta) for multiple tests.
 

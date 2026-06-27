@@ -11,22 +11,52 @@ including:
 - Publication-quality Matplotlib plotting
 """
 
+from RiskLabAI._deprecation import warn_deprecated_name
+
 from .constants import *
 from .ewma import ewma
-from .progress import progress_bar
 from .momentum_mean_reverting_strategy_sides import determine_strategy_side
-from .update_figure_layout import update_figure_layout
-from .publication_plots import (
-    setup_publication_style,
-    apply_plot_style,
-    finalize_plot
-)
+from .progress import progress_bar
 
-# --- Alias for Backward Compatibility ---
-# 'smoothing_average.py' is a duplicate of 'ewma.py'.
-# We import 'ewma' and alias it to 'compute_exponential_weighted_moving_average'
-# to maintain compatibility with modules that imported the old name.
-# You can safely delete the 'smoothing_average.py' file.
+# Plotting helpers are imported lazily (PEP 562) so that the base install
+# does not require matplotlib/seaborn/plotly (RiskLabAI[plot] extra).
+_LAZY_PLOTTING = {
+    "update_figure_layout": ("update_figure_layout", "update_figure_layout"),
+    "setup_publication_style": ("publication_plots", "setup_publication_style"),
+    "apply_plot_style": ("publication_plots", "apply_plot_style"),
+    "finalize_plot": ("publication_plots", "finalize_plot"),
+}
+
+
+# Deprecated non-ASCII constant identifiers -> their ASCII replacements.
+# Accessing these via RiskLabAI.utils warns and returns the new value; the
+# identifiers are removed in 2.1.0 (string values are unchanged regardless).
+_DEPRECATED_CONSTANTS = {
+    "CUMULATIVE_θ": "CUMULATIVE_THETA",
+    "CUMULATIVE_BUY_θ": "CUMULATIVE_BUY_THETA",
+    "CUMULATIVE_SELL_θ": "CUMULATIVE_SELL_THETA",
+}
+
+
+def __getattr__(name):
+    if name in _LAZY_PLOTTING:
+        from importlib import import_module
+
+        module_name, attr = _LAZY_PLOTTING[name]
+        value = getattr(import_module(f".{module_name}", __name__), attr)
+        globals()[name] = value
+        return value
+    if name in _DEPRECATED_CONSTANTS:
+        new = _DEPRECATED_CONSTANTS[name]
+        warn_deprecated_name(name, new, removed_in="2.1.0")
+        return globals()[new]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+# --- Alias for backward compatibility ---
+# The historical `compute_exponential_weighted_moving_average` name now maps to
+# the canonical, numba-jitted `ewma` (the former `smoothing_average.py`
+# duplicate has been removed).
 compute_exponential_weighted_moving_average = ewma
 
 __all__ = [
@@ -44,9 +74,9 @@ __all__ = [
     "CUMULATIVE_VOLUME",
     "CUMULATIVE_BUY_VOLUME",
     "CUMULATIVE_SELL_VOLUME",
-    "CUMULATIVE_θ",
-    "CUMULATIVE_BUY_θ",
-    "CUMULATIVE_SELL_θ",
+    "CUMULATIVE_THETA",
+    "CUMULATIVE_BUY_THETA",
+    "CUMULATIVE_SELL_THETA",
     "EXPECTED_IMBALANCE",
     "EXPECTED_TICKS_NUMBER",
     "EXPECTED_BUY_IMBALANCE",
@@ -62,20 +92,15 @@ __all__ = [
     "PREVIOUS_TICK_IMBALANCES_SELL_LIST",
     "PREVIOUS_BARS_BUY_TICKS_PROPORTIONS_LIST",
     "N_PREVIOUS_BARS_FOR_EXPECTED_N_TICKS_ESTIMATION",
-    
     # ewma
     "ewma",
     "compute_exponential_weighted_moving_average",  # Alias
-    
     # progress
     "progress_bar",
-    
     # momentum_mean_reverting_strategy_sides
     "determine_strategy_side",
-    
     # update_figure_layout
     "update_figure_layout",
-
     # publication_plots
     "setup_publication_style",
     "apply_plot_style",
