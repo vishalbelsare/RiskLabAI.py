@@ -19,7 +19,7 @@ The library provides implementations for:
 - **Backtest statistics** — PSR/DSR, PBO, strategy risk
 - **Microstructure & entropy features**, **structural breaks**, and a Deep-BSDE PDE solver
 
-There is a companion Julia package,
+There is a companion Julia package, which is in parity with this repo
 [RiskLabAI.jl](https://github.com/RiskLabAI/RiskLabAI.jl), which mirrors this
 API.
 
